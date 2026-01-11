@@ -1,0 +1,334 @@
+Project Overview
+Build a mobile-first web application for the 2026 state primary elections in 5 pilot states (NY, NJ, PA, CT, TX). Core MVP focuses on ballot information, voter card generation, and social sharing.
+
+PHASE 1: Project Setup & Data Foundation
+Task 1.1: Initialize Next.js Project
+Create a Next.js 14+ project with:
+- TypeScript enabled
+- Tailwind CSS for styling
+- PWA configuration
+- Supabase for backend
+- Vercel deployment setup
+
+File structure:
+/app
+  /onboarding
+  /ballot
+  /voter-card
+  /share
+/components
+  /ui
+  /ballot
+  /cards
+/lib
+  /api
+  /utils
+  /types
+/public
+  /assets
+Task 1.2: Create Database Schema
+sqlGenerate Supabase schema with these tables:
+
+users:
+- id (uuid)
+- email 
+- zip_code
+- state
+- birth_year
+- created_at
+- preferences (jsonb)
+
+ballots:
+- id
+- state
+- county
+- election_date
+- election_type
+- data (jsonb containing all races/measures)
+- last_updated
+
+voter_decisions:
+- id
+- user_id (FK)
+- ballot_id (FK)
+- decisions (jsonb)
+- notes (text)
+- created_at
+- shared (boolean)
+
+voter_cards:
+- id
+- user_id (FK)
+- decisions_id (FK)
+- card_design (string)
+- share_url (string)
+- created_at
+Task 1.3: Build Data Ingestion Scripts
+pythonCreate Python scripts to:
+
+1. Fetch NY state ballot data:
+   - Scrape vote.nyc for 2026 ballot measures
+   - Parse PDF from Board of Elections
+   - Structure into JSON format
+   
+2. Process with LLM API:
+   - For each ballot measure, generate:
+     * 50-word summary
+     * "Explain like I'm 5" version
+     * Key supporters/opponents
+     * Fiscal impact in plain English
+   
+3. Store in Supabase:
+   - Validate data structure
+   - Insert with versioning
+   - Log all changes
+
+PHASE 2: Core User Interface
+Task 2.1: Build Onboarding Flow
+tsxCreate 4-screen onboarding:
+
+Screen 1: Welcome
+- Headline: "Make your voice heard in local elections"
+- Subtext: "Get informed, save your choices, share with friends"
+- CTA: "Get Started" button
+
+Screen 2: Location
+- Component: ZIP code input with auto-complete
+- Validation: Check against supported states
+- Display: Show detected district/county
+
+Screen 3: Preferences (optional)
+- Component: Issue importance sliders (0-10)
+  * Economy
+  * Education  
+  * Healthcare
+  * Environment
+  * Public Safety
+- Skip option prominently displayed
+
+Screen 4: Account (optional)
+- Email input for saving progress
+- Social login options (Google, Apple)
+- "Continue as guest" option
+Task 2.2: Create Ballot Display Interface
+tsxBuild ballot view with:
+
+Component: BallotView
+- Header: Election date, type, location
+- Tab navigation: [Candidates | Measures | My Decisions]
+
+Component: BallotMeasure
+- Measure title and number
+- Toggle: [Simple | Detailed | Original Text]
+- Simple view:
+  * What it does (50 words)
+  * Cost to you (if applicable)
+  * Who supports/opposes
+- Detailed view:
+  * Full analysis (500 words)
+  * Arguments for/against
+  * News articles
+- Decision buttons: [Yes | No | Undecided]
+- Notes field (optional)
+
+Component: CandidateCard  
+- Photo placeholder
+- Name and party
+- Top 3 policy positions
+- Experience summary
+- Endorsements
+- Decision: [Select | Not Sure]
+Task 2.3: Build Voter Card Generator
+tsxCreate shareable voter card:
+
+Component: VoterCardBuilder
+- Card templates (3 designs):
+  * Minimal (text only)
+  * Bold (colorful gradients)
+  * Professional (clean lines)
+  
+Card content:
+- Header: "My 2026 Primary Choices"
+- Location: [County, State]
+- Date: [Election date]
+- Decisions list (user can hide specific items)
+- Footer: "Learn more at potato-says.com/[unique-id]"
+
+Sharing options:
+- Download as image (PNG)
+- Copy link
+- Share to: Instagram Stories, Twitter/X, TikTok
+
+PHASE 3: LLM-Powered Content Processing
+Task 3.1: Create Ballot Simplification API
+javascriptBuild API endpoint that:
+
+POST /api/simplify-ballot-measure
+Input: {
+  original_text: string,
+  measure_id: string
+}
+
+Processing:
+1. Call Claude API with prompt:
+   "You are helping young voters understand ballot measures.
+    Convert this legal text into 3 versions:
+    1. One sentence (max 15 words)
+    2. Simple explanation (max 50 words, 8th grade reading level)
+    3. Detailed breakdown (max 200 words)
+    
+    Include:
+    - What changes
+    - Who it affects
+    - Estimated cost/benefit
+    - Why it matters to young adults
+    
+    Original text: [original_text]"
+
+2. Validate response structure
+3. Cache results
+4. Return JSON with all versions
+Task 3.2: Build Bias Detection System
+javascriptCreate bias checker:
+
+POST /api/check-bias
+Input: {
+  content: string,
+  content_type: 'summary' | 'argument'
+}
+
+Processing:
+1. Check for loaded language
+2. Verify both sides represented
+3. Flag missing context
+4. Return bias score (0-100) with specific issues
+
+If score > 70:
+- Trigger human review
+- Add "under review" label
+- Suggest edits
+
+PHASE 4: Social Features
+Task 4.1: Implement Share Functionality
+tsxBuild sharing system:
+
+Component: ShareModal
+- Generate unique URL for voter card
+- Create Open Graph meta tags:
+  * Title: "[Name]'s Voter Guide for [Election]"
+  * Description: "See how I'm voting and make your own"
+  * Image: Generated voter card
+
+API: /api/share
+- Store shared card in database
+- Generate short URL
+- Track share analytics
+- Return share links for each platform
+Task 4.2: Create Public Voter Card View
+tsxBuild public landing page:
+
+Page: /card/[id]
+- Display voter's choices (respecting privacy settings)
+- Show "Make your own card" CTA
+- Display election countdown
+- Link to register to vote
+- Show how many others have created cards
+```
+
+---
+
+## PHASE 5: MVP Content & Testing
+
+### Task 5.1: Generate Initial Content
+```
+For NY pilot, create:
+
+1. Process 10 sample ballot measures:
+   - Use real 2025 NYC ballot proposals as templates
+   - Generate all summary versions
+   - Create pro/con arguments
+   - Add fiscal impact statements
+
+2. Create educational content:
+   - "How NYC Government Works" (5 slides)
+   - "Your Vote's Impact" (with local examples)
+   - "Understanding Ballot Language" guide
+
+3. Write social media templates:
+   - 10 Instagram story templates
+   - 5 TikTok video scripts
+   - Twitter/X thread templates
+Task 5.2: Build Test Suite
+javascriptCreate tests for:
+
+1. Critical user paths:
+   - Onboarding completion
+   - Ballot decision saving
+   - Voter card generation
+   - Social sharing
+
+2. Data integrity:
+   - Ballot data accuracy
+   - User decision persistence
+   - Privacy settings enforcement
+
+3. LLM output validation:
+   - Summary readability scores
+   - Bias detection accuracy
+   - Content completeness checks
+
+PHASE 6: Launch Preparation
+Task 6.1: Create Landing Page
+tsxBuild marketing site:
+
+Sections:
+- Hero: "Your voice matters in every election"
+- Problem: Statistics on youth voting
+- Solution: Three-step process visual
+- Features: Carousel of app screenshots
+- Social proof: Mock testimonials
+- CTA: Email capture for launch notification
+Task 6.2: Setup Analytics & Monitoring
+javascriptImplement tracking for:
+
+- Mixpanel events:
+  * Onboarding funnel
+  * Ballot interaction time
+  * Share actions
+  * Decision changes
+
+- Error monitoring (Sentry)
+- Performance monitoring (Vercel Analytics)
+- User session recording (Hotjar)
+Task 6.3: Deploy MVP
+bashDeployment checklist:
+1. Environment variables set
+2. Database migrations run
+3. SSL certificates configured
+4. CDN setup for assets
+5. Error pages created
+6. SEO meta tags added
+7. Social media accounts created
+8. Support email configured
+
+SUCCESS CRITERIA FOR MVP
+The MVP is complete when:
+
+Users can view simplified ballot information for at least 1 NY district
+Users can save their voting decisions locally
+Users can generate and share a voter card image
+The app works on mobile Safari and Chrome
+Page load time is under 3 seconds
+10 test users can complete the full flow without assistance
+
+
+EXECUTION NOTES
+
+Start with Task 1.1 and proceed sequentially
+Use mock data for states beyond NY in MVP
+Prioritize mobile experience over desktop
+Keep all UI components under 50KB
+Generate actual code, not pseudocode
+Test each component in isolation before integration
+Document all API endpoints with examples
+Create a simple admin panel for content updates
