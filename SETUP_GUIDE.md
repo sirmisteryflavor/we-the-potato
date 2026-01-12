@@ -6,20 +6,28 @@ After setting up the Neon PostgreSQL database, you need to populate the zipcodes
 
 ### One-time Setup
 
-1. **Set DATABASE_URL environment variable** in Vercel:
-   - Go to Vercel Dashboard → Project Settings → Environment Variables
-   - Add `DATABASE_URL` with your Neon database connection string
+1. **Verify DATABASE_URL in .env.local** (for local development):
+   - The file should contain: `DATABASE_URL="postgresql://..."`
+   - If you don't have it, copy it from Vercel Dashboard → Project Settings → Environment Variables
 
-2. **Run the zipcode seed script** locally:
+2. **Create the zipcodes table** using Drizzle migration:
 
 ```bash
-# Using npm
+npm run db:push
+```
+
+This will push the `zipcodes` table schema to your Neon database.
+
+3. **Run the zipcode seed script** locally:
+
+```bash
+# Option 1: Using npm script (recommended - automatically loads .env.local)
 npm run seed-zipcodes
 
-# Or manually with ts-node
-npx ts-node scripts/seed-zipcodes.ts
+# Option 2: Or directly with environment variable
+DATABASE_URL="postgresql://..." npm run seed-zipcodes
 
-# Or with tsx
+# Option 3: Or with tsx directly
 npx tsx scripts/seed-zipcodes.ts
 ```
 
