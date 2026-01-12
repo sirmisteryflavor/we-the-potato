@@ -184,6 +184,19 @@ export const analyticsEvents = pgTable("analytics_events", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const zipcodes = pgTable(
+  "zipcodes",
+  {
+    zipcode: varchar("zipcode", { length: 5 }).primaryKey(),
+    state: varchar("state", { length: 2 }).notNull(),
+    county: text("county"),
+    city: text("city"),
+    latitude: text("latitude"),
+    longitude: text("longitude"),
+  },
+  (table) => [index("IDX_zipcode_state").on(table.state)]
+);
+
 export interface VoterCardDecision {
   type: "measure" | "candidate";
   title: string;
