@@ -168,8 +168,8 @@ export async function GET(
       const measureIds = ballotMeasures.map(m => m.id);
 
       // Flatten all candidates for full-text search in future
-      const allCandidates = racesWithCandidates.flatMap(race =>
-        race.candidates.map(candidate => ({
+      const allCandidates = racesWithCandidates.flatMap((race: any) =>
+        race.candidates.map((candidate: any) => ({
           ...candidate,
           office: race.office,
           raceId: race.id,
