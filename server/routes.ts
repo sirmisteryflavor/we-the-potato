@@ -1,10 +1,12 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { simplifyBallotMeasure, checkBias } from "./anthropic";
-import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 import { usernameSchema, RESERVED_USERNAMES } from "@shared/schema";
+
+// No-op middleware for visitor-based auth (no login required)
+const isAuthenticated = (_req: Request, _res: Response, next: NextFunction) => next();
 
 const zipToStateSchema = z.object({
   zipCode: z.string().regex(/^\d{5}$/),
@@ -108,30 +110,10 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  await setupAuth(app);
-
-  app.get("/api/auth/user", (req: any, res) => {
-    if (!req.isAuthenticated() || !req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    const userId = req.user.claims?.sub;
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    storage.getUser(userId)
-      .then(user => {
-        if (user) {
-          res.json(user);
-        } else {
-          res.status(404).json({ message: "User not found" });
-        }
-      })
-      .catch(error => {
-        console.error("Error fetching user:", error);
-        res.status(500).json({ message: "Failed to fetch user" });
-      });
+  // Visitor-based auth - no login required
+  app.get("/api/auth/user", (_req: any, res) => {
+    // Always return null for visitor-based flow
+    return res.status(401).json({ message: "Unauthorized" });
   });
   
   app.get("/api/health", (req, res) => {

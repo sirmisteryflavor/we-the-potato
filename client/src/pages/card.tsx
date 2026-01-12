@@ -12,20 +12,21 @@ import { ShareModal } from "@/components/share-modal";
 import { AppHeader } from "@/components/app-header";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Share2, 
-  Edit2, 
+import {
+  Share2,
+  Edit2,
   Sparkles,
   Vote,
   Home
 } from "lucide-react";
 import type { CardTemplate, VoterCardData, VoterCardDecision } from "@shared/schema";
-import { sortDecisions, loginWithReturn } from "@/lib/utils";
+import { sortDecisions } from "@/lib/utils";
 import { getShareUrl } from "@/lib/card-styles";
 
 interface FinalizedVoterCard {
   id: string;
   userId: string | null;
+  visitorId: string;
   eventId: string;
   ballotId: string | null;
   template: CardTemplate;
@@ -45,16 +46,15 @@ export default function FinalCardPage() {
   const [matchUserCard, paramsUserCard] = useRoute("/:username/:cardId");
   const search = useSearch();
   const cardRef = useRef<HTMLDivElement>(null);
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { visitorId, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  
+
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [hasCelebrated, setHasCelebrated] = useState(false);
 
   const cardId = matchCardRoute ? paramsCardRoute?.id : paramsUserCard?.cardId;
-  // Only use username from URL when we're on the /:username/:cardId route, not /card/:id
   const usernameFromUrl = matchCardRoute ? undefined : paramsUserCard?.username;
-  
+
   const { fromParam, eventIdParam } = useMemo(() => {
     const searchParams = new URLSearchParams(search);
     return {
@@ -62,7 +62,7 @@ export default function FinalCardPage() {
       eventIdParam: searchParams.get("eventId")
     };
   }, [search]);
-  
+
   const getBackDestination = (isOwner: boolean) => {
     switch (fromParam) {
       case "profile":
@@ -80,11 +80,11 @@ export default function FinalCardPage() {
   };
 
   const { data: card, isLoading } = useQuery<FinalizedVoterCard>({
-    queryKey: usernameFromUrl 
+    queryKey: usernameFromUrl
       ? ["/api/users", usernameFromUrl, "cards", cardId]
       : ["/api/finalized-card", cardId],
     queryFn: async () => {
-      const url = usernameFromUrl 
+      const url = usernameFromUrl
         ? `/api/users/${usernameFromUrl}/cards/${cardId}`
         : `/api/finalized-card/${cardId}`;
       const res = await fetch(url);
@@ -94,7 +94,7 @@ export default function FinalCardPage() {
     enabled: !!cardId,
   });
 
-  const cardOwnerUsername = usernameFromUrl || user?.username;
+  const cardOwnerUsername = usernameFromUrl;
 
   const cardData: VoterCardData = useMemo(() => {
     if (!card) {
@@ -131,7 +131,8 @@ export default function FinalCardPage() {
     };
   }, [card, cardId]);
 
-  const isOwner = !authLoading && isAuthenticated && user && card?.userId && user.id && String(card.userId) === String(user.id);
+  // Check if current visitor owns this card
+  const isOwner = !authLoading && visitorId && card?.visitorId && card.visitorId === visitorId;
   const isViewer = !authLoading && !isOwner && card;
 
   useEffect(() => {
@@ -139,9 +140,9 @@ export default function FinalCardPage() {
       setHasCelebrated(true);
       const duration = 2000;
       const end = Date.now() + duration;
-      
+
       const colors = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981"];
-      
+
       const frame = () => {
         confetti({
           particleCount: 3,
@@ -162,7 +163,7 @@ export default function FinalCardPage() {
           requestAnimationFrame(frame);
         }
       };
-      
+
       frame();
     }
   }, [isOwner, card, hasCelebrated, isLoading]);
@@ -172,13 +173,13 @@ export default function FinalCardPage() {
 
     let container: HTMLDivElement | null = null;
     let root: ReturnType<typeof createRoot> | null = null;
-    
+
     try {
       const html2canvas = (await import("html2canvas")).default;
-      
+
       const width = aspectRatio === "1:1" ? 1080 : 1080;
       const height = aspectRatio === "1:1" ? 1080 : 1920;
-      
+
       container = document.createElement("div");
       container.style.position = "absolute";
       container.style.left = "0";
@@ -189,28 +190,28 @@ export default function FinalCardPage() {
       container.style.zIndex = "-1";
       container.style.opacity = "1";
       container.style.pointerEvents = "none";
-      
+
       document.body.appendChild(container);
-      
+
       const shareUrl = getShareUrl(cardId || '', cardOwnerUsername, card?.shareUrl);
-      
+
       root = createRoot(container);
       flushSync(() => {
         root!.render(
-          <DownloadableVoterCard 
-            data={cardData} 
+          <DownloadableVoterCard
+            data={cardData}
             aspectRatio={aspectRatio}
             shareUrl={shareUrl}
             username={cardOwnerUsername}
           />
         );
       });
-      
+
       if (document.fonts && document.fonts.ready) {
         await document.fonts.ready;
       }
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       const canvas = await html2canvas(container, {
         width,
         height,
@@ -231,7 +232,7 @@ export default function FinalCardPage() {
 
       toast({
         title: "Card downloaded!",
-        description: aspectRatio === "1:1" 
+        description: aspectRatio === "1:1"
           ? "Perfect for your feed posts!"
           : "Share it on Instagram Stories or TikTok!",
         duration: 5000,
@@ -277,7 +278,7 @@ export default function FinalCardPage() {
           We couldn't find this voter card. It may have been removed or the link is incorrect.
         </p>
         <div className="flex flex-col gap-3">
-          <Button 
+          <Button
             onClick={() => navigate("/")}
             className="bg-white text-indigo-600 hover:bg-white/90 h-10 px-6 font-semibold"
             data-testid="button-create-card"
@@ -285,29 +286,27 @@ export default function FinalCardPage() {
             <Sparkles className="mr-2 h-4 w-4" />
             Create Your Own Card
           </Button>
-          {isAuthenticated && (
-            <Button 
-              variant="ghost"
-              onClick={() => navigate("/home")}
-              className="text-white/80 hover:text-white hover:bg-white/10"
-              data-testid="button-go-home"
-            >
-              <Home className="mr-2 h-4 w-4" />
-              Go to Home
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/home")}
+            className="text-white/80 hover:text-white hover:bg-white/10"
+            data-testid="button-go-home"
+          >
+            <Home className="mr-2 h-4 w-4" />
+            Go to Home
+          </Button>
         </div>
       </div>
     );
   }
 
-  const editUrl = fromParam 
+  const editUrl = fromParam
     ? `/voter-card/${card.id}/edit?from=${fromParam}${eventIdParam ? `&eventId=${eventIdParam}` : ''}`
     : `/voter-card/${card.id}/edit?from=profile`;
 
   const ownerActionButtons = (
     <div className="flex justify-center gap-2 w-full max-w-xs mx-auto">
-      <Button 
+      <Button
         variant="ghost"
         size="sm"
         onClick={() => navigate(editUrl)}
@@ -317,10 +316,10 @@ export default function FinalCardPage() {
         <Edit2 className="mr-1.5 h-3 w-3" />
         Edit
       </Button>
-      <Button 
+      <Button
         variant="ghost"
         size="sm"
-        onClick={() => setShareModalOpen(true)} 
+        onClick={() => setShareModalOpen(true)}
         className="flex-1 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 h-8 px-3 text-xs"
         data-testid="button-share-card"
       >
@@ -332,7 +331,7 @@ export default function FinalCardPage() {
 
   const viewerActionButtons = (
     <div className="flex flex-col items-center gap-3">
-      <Button 
+      <Button
         onClick={() => navigate("/")}
         className="bg-white text-indigo-600 hover:bg-white/90 h-10 px-6 font-semibold shadow-lg"
         data-testid="button-create-own-card"
@@ -348,16 +347,16 @@ export default function FinalCardPage() {
 
   return (
     <div className="min-h-screen relative">
-      <VoterCardPreview 
-        ref={cardRef} 
-        data={cardData} 
-        fullScreen 
+      <VoterCardPreview
+        ref={cardRef}
+        data={cardData}
+        fullScreen
         actionButtons={isOwner ? ownerActionButtons : viewerActionButtons}
         username={cardOwnerUsername || undefined}
       />
-      
-      <AppHeader 
-        showBackButton 
+
+      <AppHeader
+        showBackButton
         onBack={() => navigate(getBackDestination(!!isOwner))}
         backIcon={isOwner ? "arrow" : "close"}
         variant="dark"

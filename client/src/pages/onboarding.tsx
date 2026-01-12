@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { saveOnboardingData, setOnboardingComplete, getOnboardingData } from "@/lib/storage";
-import { cn, loginWithReturn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Vote, MapPin, ArrowRight, ArrowLeft, SkipForward, Sparkles, Mail, Check, Loader2, ListOrdered, User, LogIn, AtSign, X } from "lucide-react";
 import type { SupportedState, IssueCategory } from "@shared/schema";
 import { ISSUE_CATEGORIES } from "@shared/schema";
@@ -52,8 +52,8 @@ export default function Onboarding() {
   const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   
-  const needsUsername = isAuthenticated && user && !user.username;
-  const TOTAL_STEPS = needsUsername ? BASE_STEPS + 1 : BASE_STEPS;
+  const needsUsername = false; // No usernames in visitor-based flow
+  const TOTAL_STEPS = BASE_STEPS;
   
   useEffect(() => {
     if (!username || username.length < 3) {
@@ -591,35 +591,6 @@ export default function Onboarding() {
         <ProgressDots total={TOTAL_STEPS} current={step} />
         <div className="flex items-center gap-1">
           <ThemeToggle />
-          {authLoading ? (
-            <Skeleton className="h-9 w-9 rounded-full" />
-          ) : isAuthenticated && user ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/profile")}
-              data-testid="button-profile"
-            >
-              {user.profileImageUrl ? (
-                <img 
-                  src={user.profileImageUrl} 
-                  alt="Profile" 
-                  className="h-8 w-8 rounded-full object-cover"
-                />
-              ) : (
-                <User className="h-5 w-5" />
-              )}
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => loginWithReturn()}
-              data-testid="button-login"
-            >
-              <LogIn className="h-5 w-5" />
-            </Button>
-          )}
         </div>
       </header>
 

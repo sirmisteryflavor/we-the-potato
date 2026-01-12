@@ -1413,12 +1413,41 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async getVisitorFinalizedCards(visitorId: string): Promise<StoredFinalizedVoterCard[]> {
+    const rows = await db.select().from(finalizedVoterCards)
+      .where(eq(finalizedVoterCards.visitorId, visitorId))
+      .orderBy(desc(finalizedVoterCards.createdAt));
+
+    return rows.map(row => ({
+      id: row.id,
+      userId: row.userId,
+      visitorId: row.visitorId,
+      eventId: row.eventId,
+      ballotId: row.ballotId,
+      template: row.template as CardTemplate,
+      location: row.location,
+      state: row.state,
+      electionDate: row.electionDate,
+      electionType: row.electionType,
+      decisions: row.decisions as VoterCardDecision[],
+      showNotes: row.showNotes ?? true,
+      isPublic: row.isPublic ?? true,
+      shareUrl: row.shareUrl,
+      createdAt: row.createdAt ?? new Date(),
+      updatedAt: row.updatedAt ?? new Date(),
+    }));
+  }
+
   async saveFinalizedVoterCard(card: Omit<StoredFinalizedVoterCard, "createdAt" | "updatedAt">): Promise<StoredFinalizedVoterCard> {
-    if (!card.userId) {
-      throw new Error("userId is required for new finalized cards");
+    // Check for existing card by visitorId and eventId (visitor-based flow)
+    let existing: StoredFinalizedVoterCard | undefined;
+
+    if (card.visitorId) {
+      const visitorCards = await this.getVisitorFinalizedCards(card.visitorId);
+      existing = visitorCards.find(c => c.eventId === card.eventId);
+    } else if (card.userId) {
+      existing = await this.getFinalizedVoterCard(card.userId, card.eventId);
     }
-    
-    const existing = await this.getFinalizedVoterCard(card.userId, card.eventId);
     
     if (existing) {
       await db.update(finalizedVoterCards)

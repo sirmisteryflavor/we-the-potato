@@ -8,9 +8,9 @@ import { VoterCardPreview } from "@/components/voter-card-preview";
 import { AppHeader } from "@/components/app-header";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { cn, sortDecisions, loginWithReturn } from "@/lib/utils";
-import { 
-  getOnboardingData, 
+import { cn, sortDecisions } from "@/lib/utils";
+import {
+  getOnboardingData,
   getCandidateSelections,
   generateCardId,
   getActiveEventId,
@@ -19,7 +19,7 @@ import {
 import { useNotes } from "@/hooks/use-notes";
 import { useMeasureDecisions } from "@/hooks/use-measure-decisions";
 import { MOCK_BALLOT } from "@/data/mock-ballot";
-import { Loader2, Check, Eye, EyeOff, Edit, LogIn, Vote } from "lucide-react";
+import { Loader2, Check, Eye, EyeOff, Edit, Vote } from "lucide-react";
 import type { CardTemplate, VoterCardData, BallotMeasure, Candidate, VoterCardDecision, FinalizedVoterCard } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -40,20 +40,20 @@ export default function VoterCardPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const cardRef = useRef<HTMLDivElement>(null);
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  
+  const { visitorId, isLoading: authLoading } = useAuth();
+
   const isEditMode = !!routeParams.cardId;
   const cardId = routeParams.cardId;
-  
+
   const [template, setTemplate] = useState<CardTemplate>("bold");
   const [showNotes, setShowNotes] = useState(true);
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
 
   const onboardingData = getOnboardingData();
-  const measureDecisions = useMeasureDecisions(); // Reactive measure decisions from localStorage
+  const measureDecisions = useMeasureDecisions();
   const candidateSelections = getCandidateSelections();
-  const notes = useNotes(); // Reactive notes from localStorage
+  const notes = useNotes();
 
   const searchParams = new URLSearchParams(search);
   const eventIdFromUrl = searchParams.get("eventId") || getActiveEventId();
@@ -79,7 +79,6 @@ export default function VoterCardPage() {
     if (isEditMode && existingCard && !isInitialized) {
       setTemplate(existingCard.template as CardTemplate);
       setShowNotes(existingCard.showNotes ?? true);
-      // Initialize hiddenItems from server data
       const hidden = new Set<string>();
       existingCard.decisions?.forEach((d: VoterCardDecision) => {
         if (d.hidden) hidden.add(d.title);
@@ -92,7 +91,7 @@ export default function VoterCardPage() {
   const { data: ballot, isLoading: ballotLoading } = useQuery<BallotData>({
     queryKey: ["/api/ballot", state, county],
     queryFn: async () => {
-      const url = county 
+      const url = county
         ? `/api/ballot/${state}?county=${encodeURIComponent(county)}`
         : `/api/ballot/${state}`;
       const res = await fetch(url);
@@ -109,6 +108,7 @@ export default function VoterCardPage() {
   const createCardMutation = useMutation({
     mutationFn: async (data: {
       id: string;
+      visitorId: string;
       eventId: string;
       ballotId: string | null;
       template: CardTemplate;
@@ -123,7 +123,7 @@ export default function VoterCardPage() {
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/finalized-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/visitor/finalized-cards"] });
       clearActiveEventId();
       toast({
         title: "Card created!",
@@ -145,6 +145,7 @@ export default function VoterCardPage() {
 
   const updateCardMutation = useMutation({
     mutationFn: async (data: {
+      visitorId: string;
       template: CardTemplate;
       decisions: VoterCardDecision[];
       showNotes: boolean;
@@ -153,14 +154,14 @@ export default function VoterCardPage() {
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user/finalized-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/visitor/finalized-cards"] });
       queryClient.invalidateQueries({ queryKey: ["/api/finalized-card", cardId] });
       toast({
         title: "Card updated!",
         description: "Your voter card has been saved.",
         duration: 5000,
       });
-      const finalCardParams = fromParam 
+      const finalCardParams = fromParam
         ? `from=${fromParam}${eventId ? `&eventId=${eventId}` : ''}`
         : 'from=profile';
       navigate(`/card/${data.id}?${finalCardParams}`);
@@ -189,14 +190,14 @@ export default function VoterCardPage() {
 
   const allDecisions = useMemo(() => {
     const items: { id: string; type: "measure" | "candidate"; title: string; decision: string; note?: string; description?: string }[] = [];
-    
+
     Object.entries(candidatesByOffice).forEach(([office, candidates]) => {
       const selectedId = candidateSelections[office];
       if (selectedId) {
         const candidate = candidates.find((c) => c.id === selectedId);
         if (candidate) {
-          const positionsText = candidate.positions?.length 
-            ? candidate.positions.join(". ") 
+          const positionsText = candidate.positions?.length
+            ? candidate.positions.join(". ")
             : `${candidate.name} is running for ${office}`;
           const candidateNote = notes[office];
           items.push({
@@ -228,7 +229,6 @@ export default function VoterCardPage() {
     return items;
   }, [measureDecisions, candidateSelections, candidatesByOffice, ballotData.measures, notes]);
 
-  // Build mapping from measure number/title to measure ID for note lookups
   const measureNumberToId = useMemo(() => {
     const mapping: Record<string, string> = {};
     ballotData.measures.forEach((measure) => {
@@ -239,15 +239,12 @@ export default function VoterCardPage() {
 
   const cardData: VoterCardData = useMemo(() => {
     if (isEditMode && existingCard) {
-      // Look up notes directly from localStorage for each decision type
       const getNote = (d: VoterCardDecision): string | undefined => {
         if (d.type === "candidate") {
-          // Extract office from title (e.g., "Governor" from "Governor: John Smith")
           const colonIndex = d.title.indexOf(":");
           const office = colonIndex > 0 ? d.title.substring(0, colonIndex) : d.title;
           return notes[office];
         } else {
-          // For measures, look up by measure ID in measureDecisions
           const measureId = measureNumberToId[d.title];
           if (measureId && measureDecisions[measureId]) {
             return measureDecisions[measureId].note;
@@ -255,11 +252,10 @@ export default function VoterCardPage() {
         }
         return undefined;
       };
-      
+
       const decisions = sortDecisions(
         existingCard.decisions
           .map((d: VoterCardDecision) => {
-            // Get note from localStorage (direct lookup), fallback to server note
             const noteFromLocalStorage = getNote(d);
             const noteFromServer = d.note;
             const noteToUse = noteFromLocalStorage || noteFromServer;
@@ -267,7 +263,7 @@ export default function VoterCardPage() {
               type: d.type,
               title: d.title,
               decision: d.decision,
-              hidden: hiddenItems.has(d.title), // Preserve actual hidden state
+              hidden: hiddenItems.has(d.title),
               note: showNotes ? noteToUse : undefined,
               description: d.description,
             };
@@ -285,7 +281,7 @@ export default function VoterCardPage() {
       };
     }
 
-    const location = onboardingData 
+    const location = onboardingData
       ? `${onboardingData.county || ""} County, ${onboardingData.state}`
       : `${ballotData.county} County, ${ballotData.state}`;
 
@@ -296,7 +292,7 @@ export default function VoterCardPage() {
         type: d.type,
         title: d.title,
         decision: d.decision,
-        hidden: hiddenItems.has(d.title), // Preserve actual hidden state
+        hidden: hiddenItems.has(d.title),
         note: showNotes ? d.note : undefined,
         description: d.description,
       }));
@@ -325,20 +321,21 @@ export default function VoterCardPage() {
   };
 
   const handleFinalize = () => {
-    if (!isAuthenticated) {
-      loginWithReturn();
+    if (!visitorId) {
+      toast({
+        title: "Loading...",
+        description: "Please wait a moment and try again.",
+        duration: 3000,
+      });
       return;
     }
 
-    // Helper to look up notes directly from localStorage for each decision type
     const getNote = (d: VoterCardDecision | typeof allDecisions[0]): string | undefined => {
       if (d.type === "candidate") {
-        // Extract office from title (e.g., "Governor" from "Governor: John Smith")
         const colonIndex = d.title.indexOf(":");
         const office = colonIndex > 0 ? d.title.substring(0, colonIndex) : d.title;
         return notes[office];
       } else {
-        // For measures, look up by measure ID in measureDecisions
         const measureId = measureNumberToId[d.title];
         if (measureId && measureDecisions[measureId]) {
           return measureDecisions[measureId].note;
@@ -348,10 +345,9 @@ export default function VoterCardPage() {
     };
 
     const decisionsToUse = isEditMode && existingCard ? existingCard.decisions : allDecisions;
-    
+
     const decisions: VoterCardDecision[] = decisionsToUse
       .map((d: VoterCardDecision | typeof allDecisions[0]) => {
-        // Get note from localStorage (direct lookup), fallback to server/allDecisions note
         const noteFromLocalStorage = getNote(d);
         return {
           type: d.type as "measure" | "candidate",
@@ -365,6 +361,7 @@ export default function VoterCardPage() {
 
     if (isEditMode && cardId) {
       updateCardMutation.mutate({
+        visitorId,
         template,
         decisions,
         showNotes,
@@ -380,7 +377,7 @@ export default function VoterCardPage() {
         return;
       }
 
-      const location = onboardingData 
+      const location = onboardingData
         ? `${onboardingData.county || ""} County, ${onboardingData.state}`
         : `${ballotData.county} County, ${ballotData.state}`;
 
@@ -388,6 +385,7 @@ export default function VoterCardPage() {
 
       createCardMutation.mutate({
         id: generateCardId(),
+        visitorId,
         eventId,
         ballotId: ballotData.id || null,
         template,
@@ -464,11 +462,11 @@ export default function VoterCardPage() {
           <h2 className="text-sm font-semibold mb-3">Preview</h2>
           <div className="flex justify-center">
             <div className="w-56">
-              <VoterCardPreview ref={cardRef} data={cardData} username={user?.username || undefined} />
+              <VoterCardPreview ref={cardRef} data={cardData} />
             </div>
           </div>
           <div className="flex justify-center mt-4">
-            <Button 
+            <Button
               variant="default"
               size="lg"
               onClick={() => navigate(eventId ? `/ballot?eventId=${eventId}` : "/ballot")}
@@ -565,29 +563,22 @@ export default function VoterCardPage() {
         </section>
 
         <div className="pt-2 pb-6 max-w-sm mx-auto w-full">
-          <Button 
-            onClick={handleFinalize} 
+          <Button
+            onClick={handleFinalize}
             className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white"
             disabled={isSaving || authLoading || (!isEditMode && !eventId)}
             data-testid={isEditMode ? "button-save-card" : "button-create-card"}
           >
             {isSaving || authLoading ? (
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            ) : !isAuthenticated ? (
-              <LogIn className="mr-2 h-5 w-5" />
             ) : (
               <Check className="mr-2 h-5 w-5" />
             )}
-            {authLoading ? "Loading..." : isEditMode ? "Save Card" : !isAuthenticated ? "Sign In to Create Card" : "Create Card"}
+            {authLoading ? "Loading..." : isEditMode ? "Save Card" : "Create Card"}
           </Button>
           {!isEditMode && !eventId && (
             <p className="text-xs text-muted-foreground text-center mt-2">
               Please navigate from an election event to create a card.
-            </p>
-          )}
-          {!authLoading && !isAuthenticated && !isEditMode && eventId && (
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              Sign in is required to save your voter card
             </p>
           )}
         </div>
