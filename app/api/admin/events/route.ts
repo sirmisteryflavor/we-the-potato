@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { state, county, title, eventType, electionDate, registrationDeadline, description, ballotId, visibility } = await request.json();
+    const { state, county, title, eventType, electionDate, registrationDeadline, description, visibility } = await request.json();
 
     if (!state || !title || !eventType || !electionDate) {
       return NextResponse.json(
@@ -45,7 +45,6 @@ export async function POST(request: NextRequest) {
       electionDate,
       registrationDeadline: registrationDeadline || null,
       description: description || null,
-      ballotId: ballotId || null,
       status: "upcoming",
       visibility: visibility || "private",
       archived: false,
