@@ -119,13 +119,25 @@ export const eventNotifications = pgTable("event_notifications", {
 
 export const ballots = pgTable("ballots", {
   id: varchar("id").primaryKey(),
+  eventId: varchar("event_id").references(() => electionEvents.id).notNull(),
   state: varchar("state", { length: 2 }).notNull(),
   county: text("county"),
+  city: text("city"),
+  zipcode: varchar("zipcode", { length: 5 }),
   electionDate: text("election_date").notNull(),
   electionType: text("election_type").notNull(),
-  measures: jsonb("measures").$type<BallotMeasure[]>().notNull(),
-  candidates: jsonb("candidates").$type<Candidate[]>().notNull(),
-  lastUpdated: timestamp("last_updated").defaultNow(),
+  // Store race IDs for future querying/filtering
+  raceIds: text("race_ids"), // JSON array of race IDs on this ballot
+  measureIds: text("measure_ids"), // JSON array of measure IDs on this ballot
+  // Store denormalized data for quick access
+  racesCount: integer("races_count").default(0),
+  measuresCount: integer("measures_count").default(0),
+  // Store full ballot data as JSONB for future use (AI analysis, sharing, etc)
+  races: jsonb("races").$type<any[]>(),
+  measures: jsonb("measures").$type<BallotMeasure[]>(),
+  candidates: jsonb("candidates").$type<Candidate[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const voterDecisions = pgTable("voter_decisions", {
@@ -195,6 +207,150 @@ export const zipcodes = pgTable(
     longitude: text("longitude"),
   },
   (table) => [index("IDX_zipcode_state").on(table.state)]
+);
+
+export const districts = pgTable(
+  "districts",
+  {
+    id: varchar("id").primaryKey(), // e.g., "NY-CD-13", "NY-SS-27", "NY-AD-65"
+    state: varchar("state", { length: 2 }).notNull(),
+    districtType: varchar("district_type", { length: 20 }).notNull(), // "congressional", "state_senate", "state_assembly", "city_council"
+    districtNumber: varchar("district_number", { length: 10 }).notNull(),
+    name: text("name"), // e.g., "Congressional District 13", "State Senate District 27"
+    electionYear: integer("election_year").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_districts_state_year").on(table.state, table.electionYear),
+    index("IDX_districts_type").on(table.districtType),
+  ]
+);
+
+export const zipcodeDistricts = pgTable(
+  "zipcode_districts",
+  {
+    id: varchar("id").primaryKey(),
+    zipcode: varchar("zipcode", { length: 5 }).references(() => zipcodes.zipcode),
+    districtId: varchar("district_id").references(() => districts.id),
+  },
+  (table) => [index("IDX_zipcode_districts_zip").on(table.zipcode)]
+);
+
+export const races = pgTable(
+  "races",
+  {
+    id: varchar("id").primaryKey(), // e.g., "2026-NY-US-HOUSE-13", "2026-NY-GOV"
+    electionYear: integer("election_year").notNull(),
+    state: varchar("state", { length: 2 }).notNull(),
+    raceType: varchar("race_type", { length: 30 }).notNull(), // "federal_house", "federal_senate", "state_governor", "state_senate", "state_assembly", "city_council"
+    districtId: varchar("district_id").references(() => districts.id),
+    office: text("office").notNull(), // "U.S. House", "State Senate", "City Council"
+    position: text("position"), // "Representative", "Senator", "Councilmember"
+    isPrimary: boolean("is_primary").default(true),
+    primaryType: varchar("primary_type", { length: 20 }), // "democratic", "republican", "all"
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_races_year_state").on(table.electionYear, table.state),
+    index("IDX_races_type").on(table.raceType),
+    index("IDX_races_district").on(table.districtId),
+  ]
+);
+
+export const candidates = pgTable(
+  "candidates",
+  {
+    id: varchar("id").primaryKey(), // e.g., "candidate-john-doe-2026-ny-13"
+    electionYear: integer("election_year").notNull(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    party: varchar("party", { length: 30 }).notNull(), // "Democratic", "Republican", "Independent", etc.
+    incumbentStatus: varchar("incumbent_status", { length: 20 }), // "incumbent", "challenger", "open_seat"
+    photoUrl: text("photo_url"),
+    websiteUrl: text("website_url"),
+    bio: text("bio"),
+    position: text("position"), // "State Senator", "Assembly Member", etc.
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_candidates_year_party").on(table.electionYear, table.party),
+    index("IDX_candidates_last_name").on(table.lastName),
+  ]
+);
+
+export const raceCandidates = pgTable(
+  "race_candidates",
+  {
+    id: varchar("id").primaryKey(),
+    raceId: varchar("race_id").references(() => races.id).notNull(),
+    candidateId: varchar("candidate_id").references(() => candidates.id).notNull(),
+    isWonPrimary: boolean("is_won_primary"),
+    primaryVotes: integer("primary_votes"),
+    primaryPercentage: text("primary_percentage"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_race_candidates_race").on(table.raceId),
+    index("IDX_race_candidates_candidate").on(table.candidateId),
+  ]
+);
+
+export const candidateEndorsements = pgTable(
+  "candidate_endorsements",
+  {
+    id: varchar("id").primaryKey(),
+    candidateId: varchar("candidate_id").references(() => candidates.id).notNull(),
+    organization: varchar("organization", { length: 100 }).notNull(), // "Working Families Party", "Sierra Club", etc.
+    endorsementType: varchar("endorsement_type", { length: 30 }), // "primary", "general", "strategic_vote"
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("IDX_endorsements_candidate").on(table.candidateId)]
+);
+
+export const ballotMeasures2 = pgTable(
+  "ballot_measures",
+  {
+    id: varchar("id").primaryKey(),
+    electionYear: integer("election_year").notNull(),
+    state: varchar("state", { length: 2 }),
+    county: text("county"),
+    measureNumber: varchar("measure_number", { length: 20 }).notNull(),
+    title: text("title").notNull(),
+    shortTitle: text("short_title"),
+    description: text("description"),
+    fullText: text("full_text"),
+    type: varchar("type", { length: 30 }).notNull(), // "proposition", "referendum", "constitutional_amendment"
+    fiscalImpact: text("fiscal_impact"),
+    proArguments: jsonb("pro_arguments").$type<string[]>(),
+    conArguments: jsonb("con_arguments").$type<string[]>(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_ballot_measures_year_state").on(table.electionYear, table.state),
+  ]
+);
+
+export const candidateDecisions = pgTable(
+  "candidate_decisions",
+  {
+    id: varchar("id").primaryKey(),
+    visitorId: varchar("visitor_id"),
+    userId: varchar("user_id").references(() => users.id),
+    candidateId: varchar("candidate_id").references(() => candidates.id),
+    raceId: varchar("race_id").references(() => races.id),
+    decision: varchar("decision", { length: 20 }).notNull(), // "support", "oppose", "undecided", "abstain"
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_candidate_decisions_visitor").on(table.visitorId),
+    index("IDX_candidate_decisions_race").on(table.raceId),
+  ]
 );
 
 export interface VoterCardDecision {

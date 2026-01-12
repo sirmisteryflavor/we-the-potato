@@ -59,7 +59,7 @@ interface FinalizedVoterCard {
 }
 
 interface BallotData {
-  id: string;
+  ballotId: string | null;
   state: string;
   county: string;
   electionDate: string;
@@ -106,26 +106,56 @@ export default function Ballot() {
 
   const state = onboardingData?.state || "NY";
   const county = onboardingData?.county;
+  const zipCode = onboardingData?.zipCode;
   const visitorId = getVisitorId();
 
   const { data: ballot, isLoading, error, refetch } = useQuery<BallotData>({
-    queryKey: ["/api/ballot", state, county],
+    queryKey: ["/api/ballot", zipCode],
     queryFn: async () => {
-      const url = county
-        ? `/api/ballot/${state}?county=${encodeURIComponent(county)}`
-        : `/api/ballot/${state}`;
-      const res = await fetch(url);
+      if (!zipCode) {
+        throw new Error("ZIP code required to load ballot");
+      }
+      const res = await fetch(`/api/ballot/${zipCode}`);
       if (!res.ok) {
         throw new Error("Failed to fetch ballot");
       }
-      return res.json();
+      const data = await res.json();
+
+      // Transform races/candidates format to ballot format
+      // Flatten candidates from races into a single array with office field
+      const flattenedCandidates: any[] = [];
+      (data.races || []).forEach((race: any) => {
+        (race.candidates || []).forEach((candidate: any) => {
+          flattenedCandidates.push({
+            ...candidate,
+            name: `${candidate.firstName} ${candidate.lastName}`,
+            office: race.office,
+            raceId: race.id,
+            // Add default fields for CandidateCard component
+            age: candidate.age || null,
+            experience: candidate.bio || candidate.experience || "No bio available",
+            positions: candidate.positions || [],
+          });
+        });
+      });
+
+      return {
+        ballotId: data.ballotId || null,
+        state: data.state || state,
+        county: data.county || county || "",
+        electionDate: data.electionDate || "2026-06-23",
+        electionType: "primary",
+        measures: data.ballotMeasures || [],
+        candidates: flattenedCandidates,
+      };
     },
+    enabled: !!zipCode,
     staleTime: 1000 * 60 * 5,
     retry: 2,
   });
 
   const ballotData = ballot || MOCK_BALLOT;
-  const ballotId = ballotData.id;
+  const ballotId = ballotData.ballotId;
 
   const { data: visitorFinalizedCards } = useQuery<FinalizedVoterCard[]>({
     queryKey: ["/api/visitor/finalized-cards", visitorId],

@@ -294,7 +294,7 @@ export const NY_CANDIDATES: Candidate[] = [
 ];
 
 export const MOCK_BALLOT = {
-  id: "ny-2026-primary",
+  ballotId: "ny-2026-primary",
   state: "NY",
   county: "Kings",
   electionDate: "June 23, 2026",

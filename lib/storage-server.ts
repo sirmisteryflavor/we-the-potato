@@ -1484,6 +1484,8 @@ export class DatabaseStorage implements IStorage {
       showNotes: card.showNotes,
       isPublic: card.isPublic,
       shareUrl: card.shareUrl,
+      createdAt: now,
+      updatedAt: now,
     });
     
     return {

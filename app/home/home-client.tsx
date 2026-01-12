@@ -92,7 +92,7 @@ function EventCard({ event, finalizedCard, onEventClick, onNotificationToggle, i
   const isUpcoming = daysUntil > 0;
   const hasBallot = !!event.ballotId;
   const hasVoted = !!finalizedCard;
-  const isClickable = hasBallot || hasVoted;
+  const isClickable = true; // Always clickable to view ballot/races
 
   return (
     <Card
@@ -133,10 +133,10 @@ function EventCard({ event, finalizedCard, onEventClick, onNotificationToggle, i
                   {daysUntil} days
                 </Badge>
               )}
-              {hasBallot && !hasVoted && !isPast && (
+              {!hasVoted && !isPast && (
                 <Badge variant="secondary" className="text-xs">
                   <FileText className="h-3 w-3 mr-1" />
-                  Ballot Ready
+                  View Ballot
                 </Badge>
               )}
             </div>
@@ -256,7 +256,8 @@ export default function HomeFeedClient() {
     const finalizedCard = getFinalizedCardForEvent(event.id);
     if (finalizedCard) {
       router.push(`/card/${finalizedCard.id}?from=home`);
-    } else if (event.ballotId) {
+    } else {
+      // Navigate to ballot view, with or without ballotId
       router.push(`/ballot?eventId=${event.id}`);
     }
   };

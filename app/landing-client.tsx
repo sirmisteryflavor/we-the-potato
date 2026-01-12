@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -9,7 +10,13 @@ import { Vote, ArrowRight } from "lucide-react";
 
 export default function LandingClient() {
   const router = useRouter();
-  const hasCompleted = isOnboardingComplete();
+  const [hasCompleted, setHasCompleted] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setHasCompleted(isOnboardingComplete());
+    setIsHydrated(true);
+  }, []);
 
   const handleGetStarted = () => {
     if (hasCompleted) {
@@ -59,7 +66,7 @@ export default function LandingClient() {
           className="h-14 px-10 text-lg rounded-full"
           data-testid="button-get-started-hero"
         >
-          {hasCompleted ? "View Elections" : "Get Started"}
+          {isHydrated ? (hasCompleted ? "View Elections" : "Get Started") : "Get Started"}
           <ArrowRight className="ml-2 h-5 w-5" />
         </Button>
 

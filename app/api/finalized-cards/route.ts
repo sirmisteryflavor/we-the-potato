@@ -27,17 +27,26 @@ const finalizedVoterCardSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    console.log("[finalized-cards] Received body:", {
+      id: body.id,
+      visitorId: body.visitorId,
+      eventId: body.eventId,
+      ballotId: body.ballotId,
+      template: body.template,
+    });
+
     const parsed = finalizedVoterCardSchema.safeParse(body);
 
     if (!parsed.success) {
-      console.log("Validation failed:", JSON.stringify(parsed.error.issues, null, 2));
+      console.log("[finalized-cards] Validation failed:", JSON.stringify(parsed.error.issues, null, 2));
       return NextResponse.json(
         { error: "Invalid finalized card data", details: parsed.error },
         { status: 400 }
       );
     }
 
-    const card = await storage.saveFinalizedVoterCard({
+    const cardData = {
       ...parsed.data,
       userId: null,
       ballotId: parsed.data.ballotId ?? null,
@@ -45,7 +54,17 @@ export async function POST(request: NextRequest) {
       showNotes: parsed.data.showNotes ?? true,
       isPublic: true,
       shareUrl: parsed.data.shareUrl ?? null,
+    };
+
+    console.log("[finalized-cards] Saving card:", {
+      id: cardData.id,
+      visitorId: cardData.visitorId,
+      eventId: cardData.eventId,
+      template: cardData.template,
+      decisionsCount: cardData.decisions.length,
     });
+
+    const card = await storage.saveFinalizedVoterCard(cardData);
 
     const host = request.headers.get("host") || "wethepotato.vercel.app";
     const protocol = host.includes("localhost") ? "http" : "https";
@@ -55,9 +74,15 @@ export async function POST(request: NextRequest) {
       shareUrl: `${protocol}://${host}/card/${card.id}`,
     });
   } catch (error) {
-    console.error("Error saving card:", error);
+    console.error("[finalized-cards] Error saving card:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
-      { error: "Failed to save finalized card" },
+      {
+        error: "Failed to save finalized card",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
