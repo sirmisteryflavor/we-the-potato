@@ -299,6 +299,7 @@ export async function seedNY2026Elections() {
         electionDate: "2026-06-23", // New York primary date
         registrationDeadline: "2026-05-26",
         description: "Democratic primary election for New York federal, state, and local offices",
+        ballotId: null,
         status: "upcoming",
         visibility: "public",
         archived: false,

@@ -93,13 +93,11 @@ export const electionEvents = pgTable("election_events", {
   electionDate: text("election_date").notNull(),
   registrationDeadline: text("registration_deadline"),
   description: text("description"),
-  // Note: ballots table has eventId FK, so we don't need ballotId here
-  // This avoids circular reference issues
+  ballotId: varchar("ballot_id").references(() => ballots.id),
   status: varchar("status", { length: 20 }).default("upcoming").notNull(),
   visibility: varchar("visibility", { length: 10 }).default("private").notNull(),
   archived: boolean("archived").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
 export const userEventSubscriptions = pgTable("user_event_subscriptions", {
@@ -458,12 +456,12 @@ export interface ElectionEventData {
 }
 
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true });
-export const insertBallotSchema = createInsertSchema(ballots).omit({ createdAt: true, updatedAt: true });
+export const insertBallotSchema = createInsertSchema(ballots).omit({ lastUpdated: true });
 export const insertVoterDecisionsSchema = createInsertSchema(voterDecisions).omit({ createdAt: true, updatedAt: true });
 export const insertVoterCardSchema = createInsertSchema(voterCards).omit({ createdAt: true });
 export const insertFinalizedVoterCardSchema = createInsertSchema(finalizedVoterCards).omit({ createdAt: true, updatedAt: true });
 export const insertAnalyticsEventSchema = createInsertSchema(analyticsEvents).omit({ id: true, createdAt: true });
-export const insertElectionEventSchema = createInsertSchema(electionEvents).omit({ createdAt: true, updatedAt: true });
+export const insertElectionEventSchema = createInsertSchema(electionEvents).omit({ lastUpdated: true });
 export const insertUserEventSubscriptionSchema = createInsertSchema(userEventSubscriptions).omit({ id: true, createdAt: true });
 export const insertEventNotificationSchema = createInsertSchema(eventNotifications).omit({ id: true, createdAt: true });
 
