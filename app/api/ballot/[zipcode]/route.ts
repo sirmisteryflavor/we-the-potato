@@ -151,56 +151,59 @@ export async function GET(
       conArguments: measure.conArguments || [],
     }));
 
-    // Save ballot to database for future reference and analytics
+    // 6. Save ballot to database for future reference and analytics
     // Use the primary 2026 NY election event for now
-    const primaryEvent = await db_instance
-      .select()
-      .from(electionEvents)
-      .where(eq(electionEvents.id, "2026-NY-DEMOCRATIC-PRIMARY"))
-      .limit(1);
+    try {
+      const primaryEvent = await db_instance
+        .select()
+        .from(electionEvents)
+        .where(eq(electionEvents.id, "2026-NY-DEMOCRATIC-PRIMARY"))
+        .limit(1);
 
-    let ballotId: string | null = null;
-    if (primaryEvent.length > 0) {
-      ballotId = `ballot-${zipcode}-${primaryEvent[0].id}`;
+      if (primaryEvent.length > 0) {
+        const ballotId = `ballot-${zipcode}-${primaryEvent[0].id}`;
 
-      // Extract race IDs for indexing
-      const raceIds = racesWithCandidates.map(r => r.id);
-      const measureIds = ballotMeasures.map(m => m.id);
+        // Extract race IDs for indexing
+        const raceIds = racesWithCandidates.map(r => r.id);
+        const measureIds = ballotMeasures.map(m => m.id);
 
-      // Flatten all candidates for full-text search in future
-      const allCandidates = racesWithCandidates.flatMap((race: any) =>
-        race.candidates.map((candidate: any) => ({
-          ...candidate,
-          office: race.office,
-          raceId: race.id,
-        }))
-      );
+        // Flatten all candidates for full-text search in future
+        const allCandidates = racesWithCandidates.flatMap((race: any) =>
+          race.candidates.map((candidate: any) => ({
+            ...candidate,
+            office: race.office,
+            raceId: race.id,
+          }))
+        );
 
-      // Save or update ballot
-      await db_instance
-        .insert(ballots)
-        .values({
-          id: ballotId,
-          eventId: primaryEvent[0].id,
-          state: location.state,
-          county: location.county,
-          city: location.city,
-          zipcode: zipcode,
-          electionDate: primaryEvent[0].electionDate,
-          electionType: "primary",
-          raceIds: JSON.stringify(raceIds),
-          measureIds: JSON.stringify(measureIds),
-          racesCount: racesWithCandidates.length,
-          measuresCount: ballotMeasures.length,
-          races: racesWithCandidates as any,
-          measures: ballotMeasures as any,
-          candidates: allCandidates as any,
-        })
-        .onConflictDoNothing();
+        // Save or update ballot
+        await db_instance
+          .insert(ballots)
+          .values({
+            id: ballotId,
+            eventId: primaryEvent[0].id,
+            state: location.state,
+            county: location.county,
+            city: location.city,
+            zipcode: zipcode,
+            electionDate: primaryEvent[0].electionDate,
+            electionType: "primary",
+            raceIds: JSON.stringify(raceIds),
+            measureIds: JSON.stringify(measureIds),
+            racesCount: racesWithCandidates.length,
+            measuresCount: ballotMeasures.length,
+            races: racesWithCandidates as any,
+            measures: ballotMeasures as any,
+            candidates: allCandidates as any,
+          })
+          .onConflictDoNothing();
+      }
+    } catch (ballotError) {
+      // Log but don't fail - ballot storage is optional for the API
+      console.error("Failed to save ballot to database:", ballotError);
     }
 
     return NextResponse.json({
-      ballotId,
       zipcode,
       state: location.state,
       county: location.county,
@@ -209,9 +212,10 @@ export async function GET(
       ballotMeasures: ballotMeasures,
     });
   } catch (error) {
-    console.error("Error fetching ballot for zipcode:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error fetching ballot for zipcode:", errorMessage, error);
     return NextResponse.json(
-      { error: "Failed to fetch ballot" },
+      { error: "Failed to fetch ballot", details: errorMessage },
       { status: 500 }
     );
   }
