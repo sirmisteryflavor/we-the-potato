@@ -93,7 +93,6 @@ export const electionEvents = pgTable("election_events", {
   electionDate: text("election_date").notNull(),
   registrationDeadline: text("registration_deadline"),
   description: text("description"),
-  ballotId: varchar("ballot_id").references(() => ballots.id),
   status: varchar("status", { length: 20 }).default("upcoming").notNull(),
   visibility: varchar("visibility", { length: 10 }).default("private").notNull(),
   archived: boolean("archived").default(false).notNull(),
@@ -456,7 +455,7 @@ export interface ElectionEventData {
 }
 
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true });
-export const insertBallotSchema = createInsertSchema(ballots).omit({ lastUpdated: true });
+export const insertBallotSchema = createInsertSchema(ballots).omit({ createdAt: true, updatedAt: true });
 export const insertVoterDecisionsSchema = createInsertSchema(voterDecisions).omit({ createdAt: true, updatedAt: true });
 export const insertVoterCardSchema = createInsertSchema(voterCards).omit({ createdAt: true });
 export const insertFinalizedVoterCardSchema = createInsertSchema(finalizedVoterCards).omit({ createdAt: true, updatedAt: true });

@@ -19,7 +19,7 @@ import { Vote, MapPin, ArrowRight, ArrowLeft, Sparkles, Check, Loader2, ListOrde
 import type { SupportedState, IssueCategory } from "@/lib/schema";
 import { ISSUE_CATEGORIES } from "@/lib/schema";
 
-const BASE_STEPS = 3;
+const BASE_STEPS = 4;
 
 interface ZipLookupResult {
   state: string;
@@ -85,7 +85,8 @@ export default function Onboarding() {
       }
 
       if (editStep === "location") setStep(2);
-      else if (editStep === "issues") setStep(3);
+      else if (editStep === "races") setStep(3);
+      else if (editStep === "issues") setStep(4);
     }
   }, [editStep, isEditMode]);
 
@@ -167,7 +168,7 @@ export default function Onboarding() {
       }
     }
 
-    if (step === 3 && isEditMode) {
+    if ((step === 3 || step === 4) && isEditMode) {
       saveAndReturn();
       return;
     }
@@ -361,6 +362,70 @@ export default function Onboarding() {
 
       case 3:
         return (
+          <div className="space-y-6 max-w-2xl mx-auto">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <Vote className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold">Your Ballot Preview</h2>
+              <p className="text-muted-foreground">
+                {detectedLocation && `Here are some of the races in ${detectedLocation.county} County, ${detectedLocation.state}`}
+              </p>
+            </div>
+
+            {isLoadingRaces ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : races.length > 0 ? (
+              <div className="space-y-6">
+                {races.slice(0, 3).map((race) => (
+                  <div key={race.id} className="space-y-3">
+                    <h3 className="font-semibold text-lg">{race.office}</h3>
+                    <div className="space-y-2">
+                      {race.candidates.slice(0, 3).map((candidate) => (
+                        <div
+                          key={candidate.id}
+                          className="border rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {candidate.photoUrl && (
+                              <img
+                                src={candidate.photoUrl}
+                                alt={`${candidate.firstName} ${candidate.lastName}`}
+                                className="w-12 h-12 rounded-full object-cover"
+                              />
+                            )}
+                            <div>
+                              <p className="font-medium">
+                                {candidate.firstName} {candidate.lastName}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {candidate.party}
+                                {candidate.incumbentStatus === "incumbent" && " • Incumbent"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No races found for your area. You'll see them on your home page.</p>
+              </div>
+            )}
+
+            <p className="text-sm text-center text-muted-foreground">
+              You'll see your complete ballot with more races and ballot measures on your home page
+            </p>
+          </div>
+        );
+
+      case 4:
+        return (
           <div className="w-full max-w-sm mx-auto">
             <div className="text-center mb-6">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -449,7 +514,7 @@ export default function Onboarding() {
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
-                  {isHydrated && (isEditMode ? "Save" : (step === TOTAL_STEPS ? "View Elections" : "Continue"))}
+                  {isHydrated && (isEditMode ? "Save" : (step === TOTAL_STEPS ? "Complete Onboarding" : "Continue"))}
                   {!isHydrated && "Continue"}
                   {!isEditMode && <ArrowRight className="ml-2 h-5 w-5" />}
                 </>
